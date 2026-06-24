@@ -168,7 +168,18 @@ It prints a list of your devices and a long ID next to each. Find the row for yo
 
 ## Step 11 — Test it
 
-In the black window, run this first (a quick check):
+First, a quick self-check that catches typos before the real test. In the black
+window, run:
+
+```
+python selfcheck.py
+```
+
+It prints a checklist. Every line should say **`[ OK ]`**. If any line says
+**`[ FIX ]`**, it tells you exactly what to fix — do that, then run
+`python selfcheck.py` again until everything is OK.
+
+Once it's all OK, run the real connection test:
 
 ```
 python door_music_trigger.py --once
@@ -215,6 +226,7 @@ lines — it says what happened.
 
 | Problem | Fix |
 |---------|-----|
+| Not sure what's wrong before testing | Run `python selfcheck.py` — it lists exactly what's missing or mistyped. |
 | `python is not recognized` | Python wasn't added to PATH. Reinstall Python (Step 2) and **tick the “Add to PATH” box**. |
 | Auth / token error in the log | Run `python authorize.py` again to log back in. |
 | `unexpected API response shape` | Your sensor reports a slightly different format. Tell the person who set this up — one line in the code needs a small tweak. |
