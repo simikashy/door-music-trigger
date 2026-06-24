@@ -25,6 +25,8 @@ from pathlib import Path
 
 import requests
 
+from smartthings_auth import AuthError, build_auth
+
 STATUS_URL = "https://api.smartthings.com/v1/devices/{device_id}/status"
 DEFAULT_CONFIG = "config.ini"
 LOG_FILE = "door_music_trigger.log"
@@ -40,8 +42,17 @@ def load_config(path: str) -> dict:
     try:
         st = cfg["smartthings"]
         mm = cfg["mediamonkey"]
+        oauth = cfg["oauth"] if cfg.has_section("oauth") else {}
         return {
-            "token": st["token"].strip(),
+            # OAuth (preferred) -- present only if the [oauth] section is filled in.
+            "client_id": oauth.get("client_id", "").strip(),
+            "client_secret": oauth.get("client_secret", "").strip(),
+            "redirect_uri": oauth.get("redirect_uri", "").strip(),
+            "scope": oauth.get("scope", "r:devices:*").strip(),
+            "token_store": oauth.get("token_store", "tokens.json").strip(),
+            # Static token fallback (quick testing only).
+            "token": st.get("token", "").strip(),
+            # Common settings.
             "device_id": st["device_id"].strip(),
             "poll_interval": cfg.getfloat("smartthings", "poll_interval", fallback=3.0),
             "mm_path": mm["executable_path"].strip(),
@@ -68,14 +79,13 @@ def setup_logging() -> logging.Logger:
     return logger
 
 
-def fetch_contact_state(token: str, device_id: str, timeout: float = 10.0) -> str:
-    """Return 'open' or 'closed'. Raises on network/auth/parse failure."""
-    resp = requests.get(
-        STATUS_URL.format(device_id=device_id),
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
+def fetch_contact_state(auth, device_id: str) -> str:
+    """Return 'open' or 'closed'. Raises on network/auth/parse failure.
+
+    `auth` is a provider from smartthings_auth (StaticAuth or OAuthAuth); it
+    handles bearer headers and silent token refresh.
+    """
+    resp = auth.get(STATUS_URL.format(device_id=device_id))
     data = resp.json()
     return data["components"]["main"]["contactSensor"]["contact"]["value"]
 
@@ -98,12 +108,16 @@ def launch_music(mm_path: str, playlist: str, logger: logging.Logger) -> None:
 
 def poll_loop(config: dict, logger: logging.Logger, run_once: bool = False) -> None:
     previous: str | None = None
+    auth = build_auth(config)
     logger.info("Started. Polling device %s every %ss.",
                 config["device_id"], config["poll_interval"])
 
     while True:
         try:
-            current = fetch_contact_state(config["token"], config["device_id"])
+            current = fetch_contact_state(auth, config["device_id"])
+        except AuthError as e:
+            logger.error("Auth problem: %s", e)
+            current = None
         except requests.HTTPError as e:
             code = e.response.status_code if e.response is not None else "?"
             if code in (401, 403):

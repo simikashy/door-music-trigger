@@ -15,36 +15,54 @@ See the full design in
    pip install -r requirements.txt
    ```
 
-2. **Get a SmartThings token.**
-   - Quick/testing: create a Personal Access Token at
-     https://account.smartthings.com/tokens with the *Devices: read* scope.
-     ⚠️ Newly-created personal tokens may expire after ~24h — fine for testing,
-     not for daily use.
-   - Durable (recommended for everyday use): set up a small OAuth SmartApp so the
-     token auto-refreshes. This is the one piece that takes extra time; ask and
-     I'll walk you through it (or we add a refresh step to the script).
-
-3. **Find your door sensor's device ID:**
+2. **Register an OAuth SmartApp** (one time — gives durable, auto-refreshing
+   tokens). Install the SmartThings CLI (https://github.com/SmartThingsCommunity/smartthings-cli),
+   then:
    ```
-   python list_devices.py YOUR_TOKEN
+   smartthings apps:create
    ```
-   Copy the deviceId next to your door sensor.
+   - Choose **OAuth-In Only**.
+   - Display name: anything (e.g. "Door Music Trigger").
+   - Scopes: `r:devices:*`.
+   - Redirect URI: `http://localhost:8910/callback`.
 
-4. **Create your config:** copy `config.example.ini` to `config.ini` and fill in
-   the token, device_id, the MediaMonkey path, and your playlist path.
+   It prints a **Client ID** and **Client Secret** — copy both. (You can also do
+   this in the SmartThings Developer Workspace if you prefer a web UI.)
 
-5. **Test connectivity** (single poll, prints current door state, then exits):
+   > Quick test alternative: instead of OAuth you can paste a Personal Access
+   > Token into `[smartthings] token` in config.ini. ⚠️ New PATs expire after
+   > ~24h — fine to verify things work, not for daily use.
+
+3. **Create your config:** copy `config.example.ini` to `config.ini` and fill in
+   the `[oauth]` client_id and client_secret, the MediaMonkey path, and your
+   playlist path. Leave device_id for the next step.
+
+4. **Authorize once** (opens your browser; log in and approve):
+   ```
+   python authorize.py
+   ```
+   This saves auto-refreshing tokens to `tokens.json`. You won't run it again
+   unless the PC stays offline for ~30 days (refresh-token lifetime).
+
+5. **Find your door sensor's device ID** and put it in config.ini:
+   ```
+   python list_devices.py "$(python -c "import json;print(json.load(open('tokens.json'))['access_token'])")"
+   ```
+   (Or just run `python list_devices.py YOUR_PAT` if you used a static token.)
+   Copy the deviceId next to your door sensor into `[smartthings] device_id`.
+
+6. **Test connectivity** (single poll, prints current door state, then exits):
    ```
    python door_music_trigger.py --once
    ```
    The log should show "Initial door state: open" or "closed".
 
-6. **Run it:**
+7. **Run it:**
    ```
    python door_music_trigger.py
    ```
    Close the door — music should start. Activity is written to
-   `door_music_trigger.log`.
+   `door_music_trigger.log`. Tokens refresh silently in the background.
 
 ## Run automatically at startup (optional)
 
