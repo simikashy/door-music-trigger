@@ -64,11 +64,50 @@ See the full design in
    Close the door — music should start. Activity is written to
    `door_music_trigger.log`. Tokens refresh silently in the background.
 
-## Run automatically at startup (optional)
+## Run automatically at startup
 
-Create a shortcut to `pythonw door_music_trigger.py` in your Startup folder
-(`Win+R` → `shell:startup`), or set up a Task Scheduler task that runs at logon.
-`pythonw` runs it without a console window.
+Once `python door_music_trigger.py` works manually, make it start on its own at
+every logon — no console window, nothing to launch by hand:
+
+1. Double-click **`install_startup.bat`** in this folder. (If it reports a
+   permission error, right-click → *Run as administrator*.)
+2. That's it. It registers a Task Scheduler task named **DoorMusicTrigger** that
+   runs `start_hidden.vbs` at logon, which launches the trigger with `pythonw`
+   (invisible — no black console window).
+
+Useful commands afterward (run in a terminal):
+- Start it now without rebooting: `schtasks /Run /TN DoorMusicTrigger`
+- Stop the running instance: `schtasks /End /TN DoorMusicTrigger`
+- Remove auto-start entirely: `schtasks /Delete /TN DoorMusicTrigger /F`
+
+To confirm it's running, close the door and check the tail of
+`door_music_trigger.log`, or open Task Manager → Details and look for `pythonw.exe`.
+
+## What YOU must supply (the placeholders)
+
+The code is complete; these are the real-world values only you have. All of them
+live in `config.ini` (except where noted) — nothing else needs editing:
+
+| Value | Where it goes | How to get it |
+|-------|---------------|---------------|
+| **Client ID / Secret** | `[oauth]` in config.ini | From `smartthings apps:create` (step 2) |
+| **tokens.json** | created for you | Produced by running `authorize.py` (step 4) |
+| **device_id** | `[smartthings]` in config.ini | From `list_devices.py` — the row for your door sensor (step 5) |
+| **MediaMonkey path** | `[mediamonkey] executable_path` | The real path to `MediaMonkey.exe` on your PC |
+| **Playlist path** | `[mediamonkey] playlist_path` | A `.m3u` you save from MediaMonkey (see below) |
+
+**Making the playlist:** in MediaMonkey, build the playlist you want, right-click
+it → *Send to* → *Playlist file (.m3u)* (or *Export*), and save it somewhere
+stable like `C:\Users\you\Music\Playlists\door.m3u`. Put that exact path in
+config.ini. To change what plays later, just re-export over that file — no code
+or config changes.
+
+**If your sensor isn't a contact sensor** (e.g. a different SmartThings device),
+the only code assumption is the attribute path
+`components.main.contactSensor.contact.value` in `door_music_trigger.py`. Run
+`python door_music_trigger.py --once` — if it logs an "unexpected API response
+shape" error, the device reports a different attribute and that one line needs
+adjusting. For a standard multipurpose/contact sensor, it works as-is.
 
 ## Tests
 
